@@ -1,9 +1,7 @@
-import numpy as np
 import pandas as pd
 import yfinance as yf
 import os
 
-# Loads historical price data from Yahoo Finance
 def load_prices_yf(tickers: list[str], start: str, end: str) -> pd.DataFrame:
     """Load historical price data from Yahoo Finance.
     
