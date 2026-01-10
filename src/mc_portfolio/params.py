@@ -99,3 +99,24 @@ def estimate_mu_cov(returns_df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, l
     cov = 0.5 * (cov + cov.T)
 
     return mu, cov, assets
+
+def compute_daily_volatility(cov: np.ndarray, assets: list[str]) -> pd.Series:
+    """Compute daily volatility (standard deviation) for each asset from covariance matrix.
+    
+    This is a helper utility for debugging and validation.
+    
+    Parameters
+    ----------
+    cov : np.ndarray
+        Covariance matrix, shape (k, k)
+    assets : list[str]
+        List of asset names, length k
+    
+    Returns
+    -------
+    pd.Series
+        Daily volatility (sqrt of diagonal of cov) for each asset
+    """
+    # Std Dev is sqrt of variance (diagonal of covariance matrix) for individual assets
+    vol_daily = np.sqrt(np.diag(cov))
+    return pd.Series(vol_daily, index=assets, name='daily_volatility')
