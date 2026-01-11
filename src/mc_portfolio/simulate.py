@@ -35,3 +35,42 @@ def _validate_sim_inputs(mu: np.ndarray, cov: np.ndarray, T: int, N: int) -> int
     
     return len(mu)
 
+def _cholesky_factor_pd(cov: np.ndarray, eps_start: float = 1e-10, eps_max: float = 1e-3, growth: float = 10.0) -> np.ndarray:
+    """Robustly compute Cholesky factor of covariance matrix.
+    
+    Attempts Cholesky decomposition with progressively increasing regularization
+    to ensure the matrix is Positive Definite (all eigenvalues > 0).
+    
+    Parameters
+    ----------
+    cov : np.ndarray
+        Covariance matrix, shape (k, k)
+    eps_start : float, default=1e-10
+        Initial regularization epsilon
+    eps_max : float, default=1e-3
+        Maximum regularization epsilon before giving up
+    growth : float, default=10.0
+        Multiplicative growth factor for epsilon
+    
+    Returns
+    -------
+    L : np.ndarray
+        Lower-triangular Cholesky factor, shape (k, k) such that
+        cov_reg = L @ L.T is positive definite.
+    """
+
+    k = cov.shape[0]
+    eps = eps_start
+
+    while eps <= eps_max:
+        try: 
+            # Regularize covariance matrix
+            cov_reg = cov + eps * np.eye(k)
+            # Attempt Cholesky decomposition
+            L = np.linalg.cholesky(cov_reg)
+            return L
+        except np.linalg.LinAlgError:
+            # Increase regularization and retry
+            eps *= growth
+
+    raise ValueError("Cholesky decomposition failed even after regularization")
