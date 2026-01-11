@@ -195,4 +195,3 @@ def summarize_params(mu: np.ndarray, cov: np.ndarray, assets: list[str], periods
     }, index=assets)
     
     return summary_df
-
