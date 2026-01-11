@@ -7,35 +7,29 @@ from mc_portfolio.params import estimate_mu_cov
 from mc_portfolio.utils import summarize_params
 from mc_portfolio.simulate import simulate_correlated_returns
 from mc_portfolio.portfolio import run_portfolio_aggregation
+from mc_portfolio.config import (
+    TICKERS, HISTORICAL_YEARS, SIMULATION_YEARS, NUM_SCENARIOS, RANDOM_SEED,
+    WEIGHTS, INITIAL_VALUE, ALLOW_SHORT_SELLING, RETURN_TYPE,
+    SAVE_RESULTS, OUTPUT_DIR
+)
+
 
 def main():
-    # ========================================================================
-    # SIMULATION CONFIGURATION - MODIFY THESE SETTINGS
-    # ========================================================================
-    
-    # Historical Data Settings
-    tickers = ['NVDA', 'AAPL', 'MSFT']  # Assets to include in portfolio
-    historical_years = 20  # Years of historical data for parameter estimation
-    
-    # Monte Carlo Simulation Settings
-    simulation_years = 20  # Number of years to simulate forward
-    num_scenarios = 10_000  # Number of Monte Carlo scenarios to generate
-    random_seed = 10  # For reproducibility (use None for random)
-    
-    # Portfolio Settings
-    weights = [0.4, 0.3, 0.3]  # Portfolio allocation (must sum to 1.0)
-    initial_value = 1_000_000  # Starting portfolio value ($)
-    allow_short_selling = False  # Allow negative weights (short positions)?
-    
-    # Return Calculation Method
-    return_type = "log"  # "log" or "pct"
-    
-    # Output Settings
-    save_results = True  # Save terminal returns to CSV?
-    output_dir = "outputs"  # Directory for output files
+    # Import configuration settings from config.py
+    tickers = TICKERS
+    historical_years = HISTORICAL_YEARS
+    simulation_years = SIMULATION_YEARS
+    num_scenarios = NUM_SCENARIOS
+    random_seed = RANDOM_SEED
+    weights = WEIGHTS
+    initial_value = INITIAL_VALUE
+    allow_short_selling = ALLOW_SHORT_SELLING
+    return_type = RETURN_TYPE
+    save_results = SAVE_RESULTS
+    output_dir = OUTPUT_DIR
     
     # ========================================================================
-    # DERIVED PARAMETERS (DO NOT MODIFY)
+    # DERIVED PARAMETERS
     # ========================================================================
     
     end_date = datetime.now().strftime('%Y-%m-%d')
@@ -86,6 +80,11 @@ def main():
     mu, cov, assets = estimate_mu_cov(returns_df)
     print(f"✓ Estimated parameters for {len(assets)} assets\n")
     
+    # Reorder weights to match assets order (assets may be sorted differently than tickers)
+    # Create a mapping from ticker to weight
+    ticker_to_weight = dict(zip(tickers, weights))
+    weights_reordered = [ticker_to_weight[asset] for asset in assets]
+    
     # Display parameter summary
     summary_df = summarize_params(mu, cov, assets, periods=252)
     print(summary_df.to_string())
@@ -129,17 +128,20 @@ def main():
     print("PORTFOLIO AGGREGATION")
     print(f"{'='*60}\n")
     
-    print(f"Portfolio weights:")
-    for asset, weight in zip(assets, weights):
-        print(f"  {asset}: {weight*100:.1f}%")
-    print(f"Initial value: ${initial_value:,}")
+    print(f"Portfolio weights (in order specified):")
+    # Display weights in original TICKERS order for clarity
+    for ticker, weight in zip(tickers, weights):
+        print(f"  {ticker:6s} {weight*100:6.2f}%")
+    print(f"  {'─'*16}")
+    print(f"  {'Total':6s} {sum(weights)*100:6.2f}%")
+    print(f"\nInitial value: ${initial_value:,}")
     print()
     
     print("Running portfolio aggregation...")
     portfolio_results = run_portfolio_aggregation(
         sim_returns=sim_returns,
         assets=assets,
-        weights=weights,
+        weights=weights_reordered,
         v0=initial_value,
         return_type=return_type,
         allow_short=allow_short_selling
@@ -155,13 +157,23 @@ def main():
     # RESULTS ANALYSIS
     # ======================================================================== 
 
-    # Analyze terminal returns
+    # Analyze terminal returns and values
     terminal_returns = portfolio_results['terminal_returns']
+    terminal_values = portfolio_results['terminal_values']
     annualized_returns = (1 + terminal_returns) ** (1 / simulation_years) - 1
     
     print(f"{'='*60}")
     print("TERMINAL RETURN STATISTICS")
     print(f"{'='*60}\n")
+    
+    print(f"Portfolio Value After {simulation_years:.0f} Years:")
+    print(f"  Initial investment: ${initial_value:,.0f}")
+    print(f"  Mean final value: ${terminal_values.mean():,.0f}")
+    print(f"  Median final value: ${np.median(terminal_values):,.0f}")
+    print(f"  Best case (99th percentile): ${np.percentile(terminal_values, 99):,.0f}")
+    print(f"  Worst case (1st percentile): ${np.percentile(terminal_values, 1):,.0f}")
+    print()
+    
     print(f"Total Returns (over {simulation_years:.1f} years):")
     print(f"  Mean: {terminal_returns.mean()*100:.2f}%")
     print(f"  Median: {np.median(terminal_returns)*100:.2f}%")
