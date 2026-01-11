@@ -105,3 +105,96 @@ def compute_terminal_returns(terminal_values: np.ndarray, v0: float) -> np.ndarr
         terminal_returns[n] = (terminal_values[n] / v0) - 1
     """
     return terminal_values / v0 - 1.0
+
+def run_portfolio_aggregation(
+    sim_returns: np.ndarray,
+    assets: list[str],
+    weights: list[float] | np.ndarray,
+    v0: float,
+    return_type: str = "log",
+    allow_short: bool = False # to prevent negative weights
+) -> dict:
+    """Run full portfolio aggregation from simulated asset returns.
+    
+    Parameters
+    ----------
+    sim_returns : np.ndarray
+        Simulated asset returns, shape (N, T, k)
+    assets : list[str]
+        List of asset tickers, length k
+    weights : list[float] | np.ndarray
+        Portfolio weights, length k
+    v0 : float
+        Initial portfolio value
+    return_type : {"log", "pct"}, default="log"
+        Type of returns used in sim_returns
+    allow_short : bool, default=False
+        If False, raises error if any weights are negative.
+    
+    Returns
+    -------
+    results : dict
+        Dictionary containing:
+        - "assets": list[str] - Asset names
+        - "weights": np.ndarray shape (k,) - Validated weights
+        - "port_returns": np.ndarray shape (N, T) - Portfolio returns
+        - "port_values": np.ndarray shape (N, T) - Portfolio value paths
+        - "terminal_values": np.ndarray shape (N,) - Final values
+        - "terminal_returns": np.ndarray shape (N,) - Simple returns from v0 to terminal
+        - "N": int - Number of scenarios
+        - "T": int - Number of time steps
+        - "k": int - Number of assets
+        - "v0": float - Initial value
+        - "return_type": str - Return type used
+    
+    Raises
+    ------
+    ValueError
+        If inputs are invalid
+
+    """
+
+    """Validate inputs and extract dimensions."""
+    # Extract dimensions
+    if sim_returns.ndim != 3:
+        raise ValueError(f"sim_returns must be 3D, got shape {sim_returns.shape}")
+    else:
+        N, T, k = sim_returns.shape
+
+    # Validate assets length matches
+    if len(assets) != k:
+        raise ValueError(f"assets length ({len(assets)}) doesn't match k ({k})")
+    
+    # Validate sim_returns
+    validate_sim_returns(sim_returns, k)
+
+    # Validate and convert weights
+    weights_arr = validate_weights(weights, k, allow_short=allow_short)
+
+    """Compute portfolio metrics."""
+    # Compute portfolio returns into a NxT matrix
+    port_returns = compute_portfolio_returns(sim_returns, weights_arr)
+    
+    # Compute portfolio value paths into a NxT matrix
+    port_values = compute_portfolio_values(port_returns, v0, return_type=return_type)
+    
+    # Compute terminal values and returns for each scenario
+    terminal_values = compute_terminal_values(port_values)
+    terminal_returns = compute_terminal_returns(terminal_values, v0)
+    
+    # Package results
+    results = {
+        "assets": assets,
+        "weights": weights_arr,
+        "port_returns": port_returns,
+        "port_values": port_values,
+        "terminal_values": terminal_values,
+        "terminal_returns": terminal_returns,
+        "N": N,
+        "T": T,
+        "k": k,
+        "v0": v0,
+        "return_type": return_type
+    }
+    
+    return results
