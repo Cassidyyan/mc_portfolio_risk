@@ -5,17 +5,25 @@ import os
 def load_prices_yf(tickers: list[str], start: str, end: str) -> pd.DataFrame:
     """Load historical price data from Yahoo Finance.
     
-    Args:
-        tickers: List of ticker symbols to download.
-        start: Start date in 'YYYY-MM-DD' format.
-        end: End date in 'YYYY-MM-DD' format.
+    Parameters
+    ----------
+    tickers : list[str]
+        List of ticker symbols to download.
+    start : str
+        Start date in 'YYYY-MM-DD' format.
+    end : str
+        End date in 'YYYY-MM-DD' format.
     
-    Returns:
+    Returns
+    -------
+    pd.DataFrame
         Wide DataFrame with DateTimeIndex (rows) and tickers (columns).
         Values are adjusted closing prices.
         
-    Raises:
-        ValueError: If download results in empty DataFrame or too few rows.
+    Raises
+    ------
+    ValueError
+        If download results in empty DataFrame or too few rows.
     """
     if not tickers: 
         raise ValueError("tickers list cannot be empty")
@@ -46,15 +54,22 @@ def load_prices_csv(folder: str, tickers: list[str] | None = None) -> pd.DataFra
     - 'Date' column (will be parsed as DateTimeIndex)
     - 'Adj Close' or 'Close' column
     
-    Args:
-        folder: Path to folder containing CSV files.
-        tickers: Optional list of tickers to load. If None, loads all CSV files in folder.
+    Parameters
+    ----------
+    folder : str
+        Path to folder containing CSV files.
+    tickers : list[str] or None, default=None
+        Optional list of tickers to load. If None, loads all CSV files in folder.
     
-    Returns:
+    Returns
+    -------
+    pd.DataFrame
         Wide DataFrame aligned by Date with tickers as columns.
         
-    Raises:
-        ValueError: If folder doesn't exist, files missing, or required columns not found.
+    Raises
+    ------
+    ValueError
+        If folder doesn't exist, files missing, or required columns not found.
     """
     if not os.path.isdir(folder):
         raise ValueError(f"Folder does not exist: {folder}")
@@ -89,17 +104,25 @@ def load_prices_csv(folder: str, tickers: list[str] | None = None) -> pd.DataFra
 def clean_prices(prices_df: pd.DataFrame, method: str = "drop", ffill_limit: int = 1) -> pd.DataFrame:
     """Clean price data by handling missing values.
     
-    Args:
-        prices_df: DataFrame of prices with DateTimeIndex.
-        method: Cleaning method - "drop" removes rows with any NaNs,
-                "ffill" forward-fills up to ffill_limit then drops remaining NaNs.
-        ffill_limit: Maximum number of consecutive NaNs to forward-fill (only for method="ffill").
+    Parameters
+    ----------
+    prices_df : pd.DataFrame
+        DataFrame of prices with DateTimeIndex.
+    method : {"drop", "ffill"}, default="drop"
+        Cleaning method - "drop" removes rows with any NaNs,
+        "ffill" forward-fills up to ffill_limit then drops remaining NaNs.
+    ffill_limit : int, default=1
+        Maximum number of consecutive NaNs to forward-fill (only for method="ffill").
     
-    Returns:
+    Returns
+    -------
+    pd.DataFrame
         Cleaned DataFrame with no NaNs and sorted DateTimeIndex.
         
-    Raises:
-        ValueError: If method is invalid.
+    Raises
+    ------
+    ValueError
+        If method is invalid.
     """
     if method not in ("drop", "ffill"):
         raise ValueError(f"Invalid method '{method}'. Use 'drop' or 'ffill'")

@@ -5,18 +5,25 @@ import pandas as pd
 def compute_returns(prices_df: pd.DataFrame, method: str = "log") -> pd.DataFrame:
     """Compute returns from price data.
     
-    Args:
-        prices_df: Wide DataFrame of prices (DateTimeIndex, tickers as columns).
-        method: Return calculation method:
-                - "log": logarithmic returns = ln(P_t / P_{t-1})
-                - "pct": percentage returns = (P_t - P_{t-1}) / P_{t-1}
+    Parameters
+    ----------
+    prices_df : pd.DataFrame
+        Wide DataFrame of prices (DateTimeIndex, tickers as columns).
+    method : {"log", "pct"}, default="log"
+        Return calculation method:
+        - "log": logarithmic returns = ln(P_t / P_{t-1})
+        - "pct": percentage returns = (P_t - P_{t-1}) / P_{t-1}
     
-    Returns:
+    Returns
+    -------
+    pd.DataFrame
         Wide DataFrame of returns (same columns as input, one fewer row).
         First row is dropped as it contains NaN from the shift operation.
         
-    Raises:
-        ValueError: If prices_df is empty, non-numeric, or method is invalid.
+    Raises
+    ------
+    ValueError
+        If prices_df is empty, non-numeric, or method is invalid.
     """
     if prices_df.empty:
         raise ValueError("prices_df cannot be empty")
