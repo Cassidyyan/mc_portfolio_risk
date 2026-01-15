@@ -8,6 +8,11 @@ from mc_portfolio.utils import summarize_params
 from mc_portfolio.simulate import simulate_correlated_returns
 from mc_portfolio.portfolio import run_portfolio_aggregation
 from mc_portfolio.risk import compute_risk_report
+from mc_portfolio.plots import (
+    plot_fan_chart, plot_terminal_hist, plot_terminal_cdf, plot_sample_paths,
+    plot_max_drawdown_hist, plot_weights_bar, plot_corr_heatmap,
+    plot_risk_contribution, plot_mean_path_vs_benchmark
+)
 from mc_portfolio.config import (
     TICKERS, HISTORICAL_YEARS, SIMULATION_YEARS, NUM_SCENARIOS, RANDOM_SEED,
     WEIGHTS, INITIAL_VALUE, ALLOW_SHORT_SELLING, RETURN_TYPE,
@@ -22,7 +27,7 @@ def main():
     simulation_years = SIMULATION_YEARS
     num_scenarios = NUM_SCENARIOS
     random_seed = RANDOM_SEED
-    weights = WEIGHTS
+    weights = np.array(WEIGHTS)
     initial_value = INITIAL_VALUE
     allow_short_selling = ALLOW_SHORT_SELLING
     return_type = RETURN_TYPE
@@ -80,6 +85,10 @@ def main():
     print("Estimating parameters (mu, cov)...")
     mu, cov, assets = estimate_mu_cov(returns_df)
     print(f"✓ Estimated parameters for {len(assets)} assets\n")
+    
+    # Compute correlation matrix from covariance
+    std = np.sqrt(np.diag(cov))
+    corr = cov / np.outer(std, std)
     
     # Reorder weights to match assets order (assets may be sorted differently than tickers)
     # Create a mapping from ticker to weight
@@ -244,6 +253,154 @@ def main():
     print(f"  Std dev: {annualized_returns.std()*100:.2f}%")
     print(f"  Best case (99th percentile): {np.percentile(annualized_returns, 99)*100:.2f}%")
     print(f"  Worst case (1st percentile): {np.percentile(annualized_returns, 1)*100:.2f}%")
+    print()
+    
+    # ========================================================================
+    # PHASE 6: VISUALIZATIONS
+    # ========================================================================
+    
+    print(f"{'='*60}")
+    print("GENERATING VISUALIZATIONS")
+    print(f"{'='*60}\n")
+    
+    # Create outputs directory
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 1. Fan chart of portfolio values
+    print("Creating fan chart...")
+    plot_fan_chart(
+        port_values=portfolio_results['port_values'],
+        outpath=f"{output_dir}/fan_chart.png",
+        percentiles=(5, 25, 50, 75, 95),
+        title=f"Portfolio Value Fan Chart ({simulation_years}-Year Horizon)",
+        xlabel="Trading Day",
+        ylabel="Portfolio Value ($)"
+    )
+    print(f"✓ Saved to {output_dir}/fan_chart.png")
+    
+    # 2. Histogram of terminal returns with VaR/CVaR
+    print("Creating terminal returns histogram...")
+    plot_terminal_hist(
+        terminal_returns=terminal_returns,
+        outpath=f"{output_dir}/terminal_hist.png",
+        bins=60,
+        alpha=0.05,
+        var_alpha=risk_report['var_cvar']['var_alpha'],
+        cvar_alpha=risk_report['var_cvar']['cvar_alpha'],
+        title=f"Terminal Return Distribution ({simulation_years}-Year Horizon)",
+        xlabel="Terminal Return (%)",
+        ylabel="Frequency"
+    )
+    print(f"✓ Saved to {output_dir}/terminal_hist.png")
+    
+    # 3. Sample simulation paths
+    print("Creating sample paths plot...")
+    plot_sample_paths(
+        port_values=portfolio_results['port_values'],
+        outpath=f"{output_dir}/sample_paths.png",
+        n_paths=100,
+        seed=random_seed,
+        title=f"Sample Portfolio Trajectories (100 scenarios)",
+        xlabel="Trading Day",
+        ylabel="Portfolio Value ($)"
+    )
+    print(f"✓ Saved to {output_dir}/sample_paths.png")
+    
+    # 4. Terminal Return CDF
+    print("Creating terminal return CDF plot...")
+    plot_terminal_cdf(
+        terminal_returns=terminal_returns,
+        outpath=f"{output_dir}/terminal_cdf.png",
+        alpha=0.05,
+        title=f"Empirical CDF of Terminal Returns",
+        xlabel="Terminal Return (%)",
+        ylabel="Cumulative Probability"
+    )
+    print(f"✓ Saved to {output_dir}/terminal_cdf.png")
+    
+    # 5. Max Drawdown Distribution
+    print("Creating max drawdown histogram...")
+    plot_max_drawdown_hist(
+        port_values=portfolio_results['port_values'],
+        outpath=f"{output_dir}/max_drawdown_hist.png",
+        bins=50,
+        title=f"Distribution of Maximum Drawdowns",
+        xlabel="Maximum Drawdown (%)",
+        ylabel="Frequency"
+    )
+    print(f"✓ Saved to {output_dir}/max_drawdown_hist.png")
+    
+    # 6. Portfolio Weights Bar Chart
+    print("Creating portfolio weights bar chart...")
+    plot_weights_bar(
+        assets=tickers,
+        weights=weights,
+        outpath=f"{output_dir}/weights_bar.png",
+        title=f"Portfolio Weights",
+        xlabel="Asset",
+        ylabel="Weight"
+    )
+    print(f"✓ Saved to {output_dir}/weights_bar.png")
+    
+    # 7. Correlation Heatmap
+    print("Creating correlation heatmap...")
+    plot_corr_heatmap(
+        assets=tickers,
+        corr=corr,
+        outpath=f"{output_dir}/corr_heatmap.png",
+        title=f"Asset Correlation Matrix"
+    )
+    print(f"✓ Saved to {output_dir}/corr_heatmap.png")
+    
+    # 8. Risk Contribution
+    print("Creating risk contribution plot...")
+    plot_risk_contribution(
+        assets=tickers,
+        weights=weights,
+        cov=cov,
+        outpath=f"{output_dir}/risk_contribution.png",
+        title=f"Risk Contribution by Asset",
+        xlabel="Asset",
+        ylabel="Contribution to Portfolio Variance (%)"
+    )
+    print(f"✓ Saved to {output_dir}/risk_contribution.png")
+    
+    # 9. Mean Portfolio Path vs SPY Benchmark
+    print("Creating benchmark comparison plot...")
+    try:
+        # Use SPY returns from historical data to project forward
+        spy_returns = returns_df['SPY'].values if 'SPY' in returns_df.columns else None
+        
+        if spy_returns is not None and len(spy_returns) > 0:
+            # Use all available SPY returns, repeat if needed to match T
+            n_available = len(spy_returns)
+            if n_available < T:
+                # Use recent returns and repeat them to fill the gap
+                recent_spy_returns = spy_returns[-min(T, n_available):]
+                # Repeat to match simulation length
+                n_repeats = (T // len(recent_spy_returns)) + 1
+                benchmark_returns = np.tile(recent_spy_returns, n_repeats)[:T]
+            else:
+                benchmark_returns = spy_returns[-T:]
+            
+            # Convert to price path
+            benchmark_prices = initial_value * np.exp(np.cumsum(benchmark_returns))
+            
+            plot_mean_path_vs_benchmark(
+                port_values=portfolio_results['port_values'],
+                v0=initial_value,
+                benchmark_prices=benchmark_prices,
+                outpath=f"{output_dir}/mean_vs_benchmark.png",
+                title=f"Mean Portfolio Path vs SPY Benchmark",
+                xlabel="Trading Day",
+                ylabel="Cumulative Return"
+            )
+            print(f"✓ Saved to {output_dir}/mean_vs_benchmark.png")
+        else:
+            print("⚠ Warning: No SPY data available for benchmark comparison")
+    except Exception as e:
+        print(f"⚠ Warning: Benchmark comparison skipped ({str(e)})")
+    
     print()
     
     # ========================================================================
