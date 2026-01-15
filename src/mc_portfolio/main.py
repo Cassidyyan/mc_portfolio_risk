@@ -7,6 +7,7 @@ from mc_portfolio.params import estimate_mu_cov
 from mc_portfolio.utils import summarize_params
 from mc_portfolio.simulate import simulate_correlated_returns
 from mc_portfolio.portfolio import run_portfolio_aggregation
+from mc_portfolio.risk import compute_risk_report
 from mc_portfolio.config import (
     TICKERS, HISTORICAL_YEARS, SIMULATION_YEARS, NUM_SCENARIOS, RANDOM_SEED,
     WEIGHTS, INITIAL_VALUE, ALLOW_SHORT_SELLING, RETURN_TYPE,
@@ -154,16 +155,79 @@ def main():
     print()
     
     # ========================================================================
-    # RESULTS ANALYSIS
+    #  RISK METRICS
+    # ========================================================================
+    
+    print(f"{'='*60}")
+    print("RISK METRICS COMPUTATION")
+    print(f"{'='*60}\n")
+    
+    print("Computing comprehensive risk metrics...")
+    
+    risk_report = compute_risk_report(
+        terminal_returns=portfolio_results['terminal_returns'],
+        port_values=portfolio_results['port_values'],
+        alpha=0.05
+    )
+    
+    print(f"✓ Risk metrics computed!\n")
+    
+    # Display basic statistics
+    print("BASIC STATISTICS:")
+    basic = risk_report['basic_stats']
+    print(f"  Mean return: {basic['mean_return']*100:.2f}%")
+    print(f"  Std deviation: {basic['std_return']*100:.2f}%")
+    print(f"  Probability of loss: {basic['prob_loss']*100:.2f}%")
+    print(f"  Min return: {basic['min_return']*100:.2f}%")
+    print(f"  Max return: {basic['max_return']*100:.2f}%")
+    print()
+    
+    # Display VaR and CVaR
+    print("RISK MEASURES (Value at Risk):")
+    var_cvar = risk_report['var_cvar']
+    print(f"  VaR (5%): {var_cvar['var_alpha']*100:.2f}%")
+    print(f"  CVaR (5%): {var_cvar['cvar_alpha']*100:.2f}%")
+    print(f"  → 5% of scenarios have returns of {var_cvar['var_alpha']*100:.2f}% or worse")
+    print(f"  → Expected return in worst 5% tail: {var_cvar['cvar_alpha']*100:.2f}%")
+    print()
+    
+    # Display quantiles
+    print("RETURN DISTRIBUTION QUANTILES:")
+    quantiles = risk_report['quantiles_table']
+    for label in ['1%', '5%', '10%', '50%', '90%', '95%', '99%']:
+        if label in quantiles:
+            print(f"  {label:>4s}: {quantiles[label]*100:>7.2f}%")
+    print()
+    
+    # Display shape statistics if available
+    if 'shape_stats' in risk_report and 'error' not in risk_report['shape_stats']:
+        print("DISTRIBUTION SHAPE:")
+        shape = risk_report['shape_stats']
+        print(f"  Skewness: {shape['skewness']:.3f}")
+        print(f"  Kurtosis: {shape['kurtosis']:.3f}")
+        print(f"  Excess kurtosis: {shape['excess_kurtosis']:.3f}")
+        print()
+    
+    # Display drawdown statistics if available
+    if 'mdd_summary' in risk_report and 'error' not in risk_report['mdd_summary']:
+        print("MAXIMUM DRAWDOWN STATISTICS:")
+        mdd = risk_report['mdd_summary']
+        print(f"  Mean MDD: {mdd['mean_mdd']*100:.2f}%")
+        print(f"  Median MDD: {mdd['median_mdd']*100:.2f}%")
+        print(f"  95th percentile MDD: {mdd['p95_mdd']*100:.2f}%")
+        print(f"  Max MDD (worst scenario): {mdd['max_mdd']*100:.2f}%")
+        print()
+    
+    # ========================================================================
+    # ADDITIONAL ANALYSIS
     # ======================================================================== 
 
-    # Analyze terminal returns and values
-    terminal_returns = portfolio_results['terminal_returns']
     terminal_values = portfolio_results['terminal_values']
+    terminal_returns = portfolio_results['terminal_returns']
     annualized_returns = (1 + terminal_returns) ** (1 / simulation_years) - 1
     
     print(f"{'='*60}")
-    print("TERMINAL RETURN STATISTICS")
+    print("PORTFOLIO VALUE & ANNUALIZED RETURNS")
     print(f"{'='*60}\n")
     
     print(f"Portfolio Value After {simulation_years:.0f} Years:")
@@ -174,13 +238,6 @@ def main():
     print(f"  Worst case (1st percentile): ${np.percentile(terminal_values, 1):,.0f}")
     print()
     
-    print(f"Total Returns (over {simulation_years:.1f} years):")
-    print(f"  Mean: {terminal_returns.mean()*100:.2f}%")
-    print(f"  Median: {np.median(terminal_returns)*100:.2f}%")
-    print(f"  Std dev: {terminal_returns.std()*100:.2f}%")
-    print(f"  Best case (99th percentile): {np.percentile(terminal_returns, 99)*100:.2f}%")
-    print(f"  Worst case (1st percentile): {np.percentile(terminal_returns, 1)*100:.2f}%")
-    print()
     print(f"Annualized Returns:")
     print(f"  Mean: {annualized_returns.mean()*100:.2f}%")
     print(f"  Median: {np.median(annualized_returns)*100:.2f}%")
