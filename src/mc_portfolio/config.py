@@ -23,7 +23,7 @@ SIMULATION_YEARS = 5
 NUM_SCENARIOS = 20_000
 
 # Random seed for reproducibility (use None for random)
-RANDOM_SEED = 1
+RANDOM_SEED = 67
 
 # ============================================================================
 # PORTFOLIO SETTINGS
