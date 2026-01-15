@@ -88,6 +88,154 @@ mc_portfolio_risk/
 - `CHARTS_DIR`: Directory for visualization outputs
 - `DATA_DIR`: Directory for CSV outputs
 
+## Mathematical Framework
+
+### 1. Parameter Estimation
+
+From historical returns data, we estimate using pandas built-in methods:
+
+**Mean Returns (μ)**:
+```
+μᵢ = (1/n) Σₜ rᵢₜ
+```
+Computed as the column-wise mean of the returns DataFrame.
+
+**Covariance Matrix (Σ)**:
+```
+Σᵢⱼ = (1/(n-1)) Σₜ (rᵢₜ - μᵢ)(rⱼₜ - μⱼ)
+```
+Computed using pandas `.cov()` method, then symmetrized: `Σ = 0.5(Σ + Σᵀ)`
+
+**Correlation Matrix**:
+```
+ρᵢⱼ = Σᵢⱼ / (σᵢ σⱼ)
+```
+where `σᵢ = √Σᵢᵢ` is the standard deviation of asset `i`.
+
+### 2. Monte Carlo Simulation via Cholesky Decomposition
+
+**Step 1: Cholesky Factorization**
+
+Decompose the covariance matrix:
+```
+Σ = L Lᵀ
+```
+where `L` is a lower triangular matrix (Cholesky factor).
+
+**Step 2: Generate Correlated Returns**
+
+For each scenario `n` and time step `t`:
+
+1. Draw independent standard normal random variables: `Z ~ N(0, I)`
+2. Apply Cholesky factor to induce correlation: `ε = Z Lᵀ`
+3. Add mean to get correlated returns: `rₙₜ = μ + ε`
+
+Implementation:
+```python
+Z = rng.standard_normal((T, k))          # Independent normal (T×k)
+correlated_Z = Z @ L.T                   # Induce correlation (T×k)
+sim_returns[n] = mu + correlated_Z       # Add mean
+```
+
+### 3. Portfolio Aggregation
+
+**Portfolio Returns** (vectorized using Einstein summation):
+```
+rₚₜ = Σᵢ wᵢ rᵢₜ = wᵀ rₜ
+```
+Implemented as: `np.einsum('ntk,k->nt', sim_returns, weights)`
+
+**Portfolio Variance**:
+```
+σₚ² = wᵀ Σ w
+```
+
+**Portfolio Value Evolution**:
+
+For **logarithmic returns** (default):
+```
+Vₜ = V₀ exp(Σₛ₌₁ᵗ rₚₛ)
+```
+Log returns are additive, so we use cumulative sum then exponentiate.
+
+For **percentage returns**:
+```
+Vₜ = V₀ Πₛ₌₁ᵗ (1 + rₚₛ)
+```
+Percentage returns require cumulative product.
+
+**Terminal Returns**:
+```
+Rₜₑᵣₘᵢₙₐₗ = (Vₜ / V₀) - 1
+```
+
+### 4. Risk Metrics
+
+**Value at Risk (VaR)**:
+```
+VaRα = inf{x : P(R ≤ x) ≥ α}
+```
+The α-quantile of the return distribution. For α = 0.05, this is the 5th percentile return.
+
+Implementation: `np.quantile(returns, alpha, method='linear')`
+
+**Conditional Value at Risk (CVaR)**:
+```
+CVaRα = E[R | R ≤ VaRα]
+```
+The expected return given that we're in the worst α% of scenarios (tail average).
+
+Implementation:
+```python
+tail_mask = returns <= var_alpha
+cvar_alpha = np.mean(returns[tail_mask])
+```
+
+**Maximum Drawdown (MDD)**:
+
+For each time step `t`, compute:
+```
+Running Maxₜ = max_{s≤t} Vₛ
+
+Drawdownₜ = (Running Maxₜ - Vₜ) / Running Maxₜ
+
+MDD = max_{t∈[0,T]} Drawdownₜ
+```
+
+Implementation:
+```python
+running_max = np.maximum.accumulate(port_values, axis=1)
+drawdown = (running_max - port_values) / running_max
+max_dd = np.max(drawdown, axis=1)
+```
+
+**Risk Contribution**:
+```
+RCᵢ = wᵢ (Σw)ᵢ / (wᵀΣw)
+```
+The marginal contribution of asset `i` to total portfolio variance.
+
+### 5. Statistical Moments
+
+**Skewness**:
+```
+Skew = E[(R - μ)³] / σ³
+```
+Measures asymmetry of the return distribution. Positive skew indicates a right tail (more extreme positive returns).
+
+**Excess Kurtosis**:
+```
+Kurt = E[(R - μ)⁴] / σ⁴ - 3
+```
+Measures tail heaviness relative to normal distribution. Positive excess kurtosis indicates heavier tails (more extreme events).
+
+Implementation uses `scipy.stats.skew()` and `scipy.stats.kurtosis()`.
+
+**Probability of Loss**:
+```
+P(Loss) = (# of scenarios with R < 0) / N
+```
+
 ## Generated Visualizations
 
 1. **Fan Chart**: Portfolio value percentile bands over time
