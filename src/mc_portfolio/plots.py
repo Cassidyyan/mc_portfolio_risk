@@ -357,7 +357,7 @@ def plot_weights_bar(
     ylabel: str = "Weight"
 ) -> None:
     """
-    Plot portfolio weights as a bar chart.
+    Plot portfolio weights as a pie chart.
     
     Parameters
     ----------
@@ -370,9 +370,9 @@ def plot_weights_bar(
     title : str, optional
         Plot title
     xlabel : str, default="Asset"
-        X-axis label
+        X-axis label (not used for pie chart, kept for compatibility)
     ylabel : str, default="Weight"
-        Y-axis label
+        Y-axis label (not used for pie chart, kept for compatibility)
     """
     if weights.ndim != 1:
         raise ValueError(f"weights must be 1D, got shape {weights.shape}")
@@ -383,20 +383,27 @@ def plot_weights_bar(
     if not np.all(np.isfinite(weights)):
         raise ValueError("weights contains non-finite values")
     
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10, 8))
     
-    colors = ['steelblue' if w >= 0 else 'coral' for w in weights]
-    ax.bar(assets, weights, color=colors, alpha=0.7, edgecolor='black', linewidth=0.5)
+    # Use a nice color palette
+    colors = plt.cm.Set3(np.linspace(0, 1, len(assets)))
     
-    ax.axhline(0, color='black', linewidth=0.8)
-    ax.set_xlabel(xlabel, fontsize=11)
-    ax.set_ylabel(ylabel, fontsize=11)
-    ax.set_title(title or 'Portfolio Weights', fontsize=13, fontweight='bold')
-    ax.grid(True, alpha=0.3, linestyle='--', axis='y')
+    # Create pie chart
+    wedges, texts, autotexts = ax.pie(
+        weights,
+        labels=assets,
+        colors=colors,
+        autopct='%1.1f%%',
+        startangle=90,
+        textprops={'fontsize': 10}
+    )
     
-    # Rotate x-axis labels if many assets
-    if len(assets) > 10:
-        plt.xticks(rotation=45, ha='right')
+    # Make percentage text bold
+    for autotext in autotexts:
+        autotext.set_color('white')
+        autotext.set_fontweight('bold')
+    
+    ax.set_title(title or 'Portfolio Weights', fontsize=13, fontweight='bold', pad=20)
     
     ensure_outdir(outpath)
     plt.tight_layout()
